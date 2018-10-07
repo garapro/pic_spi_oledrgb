@@ -54,6 +54,7 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 // *****************************************************************************
 
 #include "oshiro.h"
+#include "spi_oledrgb.h"
 
 // *****************************************************************************
 // *****************************************************************************
@@ -96,7 +97,40 @@ OSHIRO_DATA oshiroData;
 
 /* TODO:  Add any necessary local functions.
 */
-
+static void OLED_Tasks ( void )
+{
+    SPI_OLEDRGB_COLOR color;
+    
+    switch(oshiroData.oledState)
+    {
+        case OLED_STATE_INIT:
+        {
+            if ( SPI_OLEDRGB_DevInit() )
+            {
+                oshiroData.oledState = OLED_STATE_FRAME;
+            }
+            
+            break;
+        }
+        case OLED_STATE_FRAME:
+        {
+            
+            // Gray Line
+            color.red = 0xCC;
+            color.green = 0xCC;
+            color.blue = 0xCC;
+            
+            if ( !SPI_OLEDRGB_DrawLine( 20, 16, 95, 16, &color) )break;
+            if ( !SPI_OLEDRGB_DrawLine( 20, 48, 95, 48, &color) )break;
+            
+            oshiroData.oledState = OLED_STATE_FINISH;
+            break;
+        }
+        default:
+            break;
+    }
+    return;
+}
 
 // *****************************************************************************
 // *****************************************************************************
@@ -121,6 +155,7 @@ void OSHIRO_Initialize ( void )
     /* TODO: Initialize your application's state machine and other
      * parameters.
      */
+    oshiroData.oledState = OLED_STATE_INIT;
 }
 
 
@@ -154,7 +189,7 @@ void OSHIRO_Tasks ( void )
 
         case OSHIRO_STATE_SERVICE_TASKS:
         {
-        
+            OLED_Tasks();
             break;
         }
 

@@ -94,6 +94,12 @@ typedef enum
 
 } SPI_OLEDRGB_STATES;
 
+typedef struct
+{
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+} SPI_OLEDRGB_COLOR;
 
 // *****************************************************************************
 /* Application Data
@@ -114,6 +120,10 @@ typedef struct
     SPI_OLEDRGB_STATES state;
 
     /* TODO: Define any additional data used by the application. */
+    /*** ADD ***/
+    DRV_HANDLE                  spiHandle;          // SPIハンドル
+    DRV_SPI_BUFFER_HANDLE       spiBufferHandle;    // SPIバッファーハンドル
+    /*** ADD ***/
 
 } SPI_OLEDRGB_DATA;
 
@@ -198,6 +208,8 @@ void SPI_OLEDRGB_Initialize ( void );
 
 void SPI_OLEDRGB_Tasks( void );
 
+bool SPI_OLEDRGB_DevInit( void );
+bool SPI_OLEDRGB_DrawLine( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, SPI_OLEDRGB_COLOR* color );
 
 #endif /* _SPI_OLEDRGB_H */
 

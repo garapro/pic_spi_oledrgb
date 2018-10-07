@@ -96,7 +96,46 @@ SPI_OLEDRGB_DATA spi_oledrgbData;
 
 /* TODO:  Add any necessary local functions.
 */
+static void delay(uint16_t ms)
+{
+    uint32_t time;
+    
+    time = _CP0_GET_COUNT();
+    time += (SYS_CLK_FREQ / 2 / 1000) * ms;
+    while((int32_t)(time-_CP0_GET_COUNT()) > 0){};
+    return;
+}
 
+static bool spiWrite( void *txBuffer, size_t size )
+{
+    DRV_SPI_BUFFER_EVENT event;
+    
+    CSOff();
+    
+    DRV_SPI_BufferAddWrite2( spi_oledrgbData.spiHandle, txBuffer, size, NULL, NULL, &spi_oledrgbData.spiBufferHandle );
+    if( spi_oledrgbData.spiBufferHandle == DRV_SPI_BUFFER_HANDLE_INVALID){
+        return false;
+    }
+    
+    while(1){
+        event = DRV_SPI_BufferStatus(spi_oledrgbData.spiBufferHandle);
+        
+        switch(event){
+            case DRV_SPI_BUFFER_EVENT_COMPLETE:
+            {
+                return true;
+            }
+            case DRV_SPI_BUFFER_EVENT_ERROR:
+            {
+                return false;
+            }
+        }
+    }
+    
+    CSOn();
+    
+    return true;
+}
 
 // *****************************************************************************
 // *****************************************************************************
@@ -121,6 +160,10 @@ void SPI_OLEDRGB_Initialize ( void )
     /* TODO: Initialize your application's state machine and other
      * parameters.
      */
+    /*** ADD ***/
+    spi_oledrgbData.spiHandle = DRV_HANDLE_INVALID;
+    spi_oledrgbData.spiBufferHandle = DRV_SPI_BUFFER_HANDLE_INVALID;
+    /*** ADD ***/
 }
 
 
@@ -143,7 +186,14 @@ void SPI_OLEDRGB_Tasks ( void )
         {
             bool appInitialized = true;
        
-        
+            /*** ADD ***/
+            if (spi_oledrgbData.spiHandle == DRV_HANDLE_INVALID)
+            {
+                spi_oledrgbData.spiHandle = DRV_SPI_Open( DRV_SPI_INDEX_0, DRV_IO_INTENT_WRITE | DRV_IO_INTENT_NONBLOCKING );
+                appInitialized &= ( DRV_HANDLE_INVALID != spi_oledrgbData.spiHandle );
+            }
+            /*** ADD ***/
+            
             if (appInitialized)
             {
             
@@ -170,7 +220,162 @@ void SPI_OLEDRGB_Tasks ( void )
     }
 }
 
- 
+bool SPI_OLEDRGB_Clear( void )
+{
+    uint8_t writeBuf[10];
+    
+    writeBuf[0] = 0x25;
+    writeBuf[1] = 0x00;
+    writeBuf[2] = 0x00;
+    writeBuf[3] = 95;
+    writeBuf[4] = 63;
+    
+    if(!spiWrite(writeBuf,5))return false;
+    
+    return true;
+}
+bool SPI_OLEDRGB_DrawLine( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, SPI_OLEDRGB_COLOR* color )
+{
+    uint8_t writeBuf[10];
+    
+    writeBuf[0] = 0x21;
+    writeBuf[1] = sCol;
+    writeBuf[2] = sRow;
+    writeBuf[3] = fCol;
+    writeBuf[4] = fRow;
+    writeBuf[5] = ((color->red >> 3 ) & 0x1F);
+    writeBuf[6] = ((color->green >> 2 ) & 0x3F);
+    writeBuf[7] = ((color->blue >> 3 ) & 0x1F);
+    
+    if(!spiWrite(writeBuf,8))return false;
+    
+    return true;
+    
+}
+
+bool SPI_OLEDRGB_DevInit( void )
+{
+    uint8_t writeBuf[10];
+    PMODENOn();
+    
+    delay(1000);
+    
+    RESOff();
+    delay(1000);
+    RESOn();
+    
+    // unlock
+    writeBuf[0] = 0xFD;
+    if(!spiWrite(writeBuf, 1))return false;
+    writeBuf[0] = 0x12;
+    if(!spiWrite(writeBuf, 1))return false;
+    
+    // Display Off
+    writeBuf[0] = 0xAE;
+    if(!spiWrite(writeBuf, 1))return false;
+    
+    // Set Remap and Data Format
+    writeBuf[0] = 0xA0;
+    writeBuf[1] = 0x72;
+    if(!spiWrite(writeBuf, 2))return false;
+    
+    // Set Display Start Line
+    writeBuf[0] = 0xA1;
+    writeBuf[1] = 0x00;
+    if(!spiWrite(writeBuf, 2))return false;
+    
+    // Set Display Start Line
+    writeBuf[0] = 0xA2;
+    writeBuf[1] = 0x00;
+    if(!spiWrite(writeBuf, 2))return false;
+    
+    // Set Multiplex Ratio
+    writeBuf[0] = 0xA8;
+    writeBuf[1] = 0x3F;
+    if(!spiWrite(writeBuf, 2))return false;
+    
+    // Set Master Configuration
+    writeBuf[0] = 0xAD;
+    writeBuf[1] = 0x8E;
+    if(!spiWrite(writeBuf, 2))return false;
+
+    // Set Power Saving Mode
+    writeBuf[0] = 0xB0;
+    writeBuf[1] = 0x0B;
+    if(!spiWrite(writeBuf, 2))return false;
+
+	// Set Phase Length
+    writeBuf[0] = 0xB1;
+    writeBuf[1] = 0x31; //phase 2 = 14 DCLKs, phase 1 = 15 DCLKS     
+    if(!spiWrite(writeBuf, 2))return false;
+
+
+	// Send Clock Divide Ratio and Oscillator Frequency
+    writeBuf[0] = 0xB3;
+    writeBuf[1] = 0xF0; //mid high oscillator frequency, DCLK = FpbCllk/2
+    if(!spiWrite(writeBuf, 2))return false;
+
+	// Set Second Pre-charge Speed of Color A
+    writeBuf[0] = 0x8A;
+    writeBuf[1] = 0x64; //Set Second Pre-change Speed For ColorA
+    if(!spiWrite(writeBuf, 2))return false;
+
+	// Set Set Second Pre-charge Speed of Color B
+    writeBuf[0] = 0x8B;
+    writeBuf[1] = 0x78;//Set Second Pre-change Speed For ColorB
+    if(!spiWrite(writeBuf, 2))return false;
+
+	// Set Second Pre-charge Speed of Color C
+    writeBuf[0] = 0x8C;
+    writeBuf[1] = 0x64; //Set Second Pre-change Speed For ColorC
+    if(!spiWrite(writeBuf, 2))return false;
+
+	// Set Pre-Charge Voltage
+    writeBuf[0] = 0xBB;
+    writeBuf[1] = 0x3A; // Pre-charge voltage =...Vcc    
+    if(!spiWrite(writeBuf, 2))return false;
+
+	// Set VCOMH Deselect Level
+    writeBuf[0] = 0xBE;
+    writeBuf[1] = 0x3E; // Vcomh = ...*Vcc
+    if(!spiWrite(writeBuf, 2))return false;
+
+	// Set Master Current
+    writeBuf[0] = 0x87;
+    writeBuf[1] = 0x06;
+    if(!spiWrite(writeBuf, 2))return false;
+
+	// Set Contrast for Color A
+    writeBuf[0] = 0x81;
+    writeBuf[1] = 0x91; // Set contrast for color A
+	if(!spiWrite(writeBuf, 2))return false;
+
+	// Set Contrast for Color B
+    writeBuf[0] = 0x82;
+    writeBuf[1] = 0x50; // Set contrast for color B
+	if(!spiWrite(writeBuf, 2))return false; 
+
+	// Set Contrast for Color C
+    writeBuf[0] = 0x83;
+    writeBuf[1] = 0x7D; // Set contrast for color C
+	if(!spiWrite(writeBuf, 2))return false;
+
+    writeBuf[0] = 0x2E;   //disable scrolling
+	if(!spiWrite(writeBuf, 1))return false;
+    
+    SPI_OLEDRGB_Clear();
+    
+    VCCENOn();
+    delay(1000);
+    
+    // Set display ON
+    writeBuf[0] = 0xAF;   //disable scrolling
+	if(!spiWrite(writeBuf, 1))return false;
+    
+    delay(300);
+    
+    return true;
+}
 
 /*******************************************************************************
  End of File

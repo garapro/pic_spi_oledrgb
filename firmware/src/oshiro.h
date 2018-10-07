@@ -94,6 +94,12 @@ typedef enum
 
 } OSHIRO_STATES;
 
+typedef enum
+{
+    OLED_STATE_INIT=0,
+    OLED_STATE_FRAME,
+    OLED_STATE_FINISH
+}OLED_STATES;
 
 // *****************************************************************************
 /* Application Data
@@ -114,6 +120,7 @@ typedef struct
     OSHIRO_STATES state;
 
     /* TODO: Define any additional data used by the application. */
+    OLED_STATES oledState;
 
 } OSHIRO_DATA;
 
