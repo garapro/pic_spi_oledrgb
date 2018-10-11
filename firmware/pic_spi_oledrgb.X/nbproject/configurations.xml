@@ -23,6 +23,7 @@
         </logicalFolder>
         <itemPath>../src/oshiro.h</itemPath>
         <itemPath>../src/spi_oledrgb.h</itemPath>
+        <itemPath>../src/fontascii57.h</itemPath>
       </logicalFolder>
       <logicalFolder name="f1" displayName="framework" projectFiles="true">
         <logicalFolder name="f1" displayName="driver" projectFiles="true">

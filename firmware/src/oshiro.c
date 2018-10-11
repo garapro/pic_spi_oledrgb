@@ -123,6 +123,13 @@ static void OLED_Tasks ( void )
             if ( !SPI_OLEDRGB_DrawLine( 20, 16, 95, 16, &color) )break;
             if ( !SPI_OLEDRGB_DrawLine( 20, 48, 95, 48, &color) )break;
             
+            // string
+            color.red = 0xFF;
+            color.green = 0xFF;
+            color.blue = 0xFF;
+            
+            if ( !SPI_OLEDRGB_DrawAsciiString( 0, 0, "oshiro", &color) )break;
+            
             oshiroData.oledState = OLED_STATE_FINISH;
             break;
         }

@@ -54,6 +54,7 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 // *****************************************************************************
 
 #include "spi_oledrgb.h"
+#include "fontascii57.h"
 
 // *****************************************************************************
 // *****************************************************************************
@@ -135,6 +136,16 @@ static bool spiWrite( void *txBuffer, size_t size )
     CSOn();
     
     return true;
+}
+
+static uint16_t getColor16( SPI_OLEDRGB_COLOR* color ){
+    uint16_t ret = 0x0000;
+    
+    ret |= ((uint16_t)(color->red)<<11 & 0xF800 );
+    ret |= ((uint16_t)(color->green)<<5 & 0x07E0 );
+    ret |= ((uint16_t)(color->blue) & 0x001F );
+    
+    return ret;
 }
 
 // *****************************************************************************
@@ -234,7 +245,7 @@ bool SPI_OLEDRGB_Clear( void )
     
     return true;
 }
-bool SPI_OLEDRGB_DrawLine( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, SPI_OLEDRGB_COLOR* color )
+bool SPI_OLEDRGB_DrawLine( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, SPI_OLEDRGB_COLOR* color)
 {
     uint8_t writeBuf[10];
     
@@ -253,6 +264,89 @@ bool SPI_OLEDRGB_DrawLine( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRo
     
 }
 
+bool SPI_OLEDRGB_DrawPixel( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, SPI_OLEDRGB_COLOR* color, uint8_t* bmp )
+{
+    uint8_t writeBuf[10];
+    uint16_t loop;
+    uint16_t size;
+    
+    writeBuf[0] = 0x15;
+    writeBuf[1] = sCol;
+    writeBuf[2] = fCol;
+    writeBuf[3] = 0x75;
+    writeBuf[4] = sRow;
+    writeBuf[5] = fRow;
+    
+    if(!spiWrite(writeBuf, 6))return false;
+    
+    DCOn();
+    size = (fRow-sRow)*(fCol-sCol);
+    for( loop = 0; loop<size; loop++){
+        spiWrite(&bmp[loop],1);
+    }
+    DCOff();
+    
+    return true;
+}
+
+bool SPI_OLEDRGB_DrawAscii( uint8_t col, uint8_t row, char ascii, SPI_OLEDRGB_COLOR* color )
+{
+    uint8_t writeBuf[10];
+    uint8_t i;
+    uint8_t j;
+    
+    uint16_t color16;
+    
+    if (( col + 4 > MAX_COL) || ( row + 6 > MAX_ROW))return false;
+    
+    CSOff();
+    
+    writeBuf[0] = 0x15;
+    writeBuf[1] = col;
+    writeBuf[2] = col+4;
+    writeBuf[3] = 0x75;
+    writeBuf[4] = row;
+    writeBuf[5] = row+6;
+    
+    if(!spiWrite(writeBuf, 6))return false;
+    
+    DCOn();
+    for( i = 0; i < 7; i++){
+        for( j = 0; j < 5; j++){
+            if(( FontAscii57[ascii][i] >> (7 - j)) & 0x01){
+                color16 = getColor16(color);
+            } else {
+                color16 = 0x0000;
+            }
+            writeBuf[0] = (uint8_t)(color16>>8);
+            writeBuf[1] = (uint8_t)(color16);
+            spiWrite(writeBuf,2);
+        }
+    }
+    
+    DCOff();
+    
+    CSOn();
+    
+    return true;
+}
+
+bool SPI_OLEDRGB_DrawAsciiString( uint8_t col, uint8_t row, char* str, SPI_OLEDRGB_COLOR* color )
+{
+    char* p = str;
+    uint8_t cnt = 0;
+    
+    if ((( col + strlen(str)*6 ) > MAX_COL ) || ((row + 8) > MAX_ROW )) return false;
+    
+    while( *p != NULL )
+    {
+        if(!SPI_OLEDRGB_DrawAscii(col+cnt*6, row, *p, color))return false;
+        p++;
+        cnt++;
+    }
+    return true;
+}
+
 bool SPI_OLEDRGB_DevInit( void )
 {
     uint8_t writeBuf[10];
@@ -266,9 +360,8 @@ bool SPI_OLEDRGB_DevInit( void )
     
     // unlock
     writeBuf[0] = 0xFD;
-    if(!spiWrite(writeBuf, 1))return false;
-    writeBuf[0] = 0x12;
-    if(!spiWrite(writeBuf, 1))return false;
+    writeBuf[1] = 0x12;
+    if(!spiWrite(writeBuf, 2))return false;
     
     // Display Off
     writeBuf[0] = 0xAE;

@@ -72,6 +72,8 @@ extern "C" {
 // Section: Type Definitions
 // *****************************************************************************
 // *****************************************************************************
+#define MAX_COL                             (95)
+#define MAX_ROW                             (63)
 
 // *****************************************************************************
 /* Application states
@@ -210,6 +212,8 @@ void SPI_OLEDRGB_Tasks( void );
 
 bool SPI_OLEDRGB_DevInit( void );
 bool SPI_OLEDRGB_DrawLine( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, SPI_OLEDRGB_COLOR* color );
+bool SPI_OLEDRGB_DrawAscii( uint8_t col, uint8_t row, char ascii, SPI_OLEDRGB_COLOR* color );
+bool SPI_OLEDRGB_DrawAsciiString( uint8_t col, uint8_t row, char* str, SPI_OLEDRGB_COLOR* color );
 
 #endif /* _SPI_OLEDRGB_H */
 
