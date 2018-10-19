@@ -61,6 +61,10 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 // Section: Global Data Definitions
 // *****************************************************************************
 // *****************************************************************************
+#define SCREEN_WIDTH                                    (75)
+#define SCREEN_HEIGHT                                   (32)
+
+#define SCREEN_HEIGHT_BYTE                              (SCREEN_HEIGHT/8)
 
 // *****************************************************************************
 /* Application Data
@@ -79,6 +83,9 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 
 OSHIRO_DATA oshiroData;
 
+static uint8_t screenData[SCREEN_WIDTH][SCREEN_HEIGHT_BYTE] = {0};
+
+
 // *****************************************************************************
 // *****************************************************************************
 // Section: Application Callback Functions
@@ -87,6 +94,11 @@ OSHIRO_DATA oshiroData;
 
 /* TODO:  Add any necessary callback functions.
 */
+void timerCallback( uintptr_t context, uint32_t currTick )
+{
+    oshiroData.oledState = OLED_STATE_MEASURE;
+    return;
+}
 
 // *****************************************************************************
 // *****************************************************************************
@@ -97,9 +109,45 @@ OSHIRO_DATA oshiroData;
 
 /* TODO:  Add any necessary local functions.
 */
+static void setScreenAdcData( void )
+{
+    uint32_t data;
+    
+    data = oshiroData.adcData;
+    
+    if( data < 0x400){
+        
+        screenData[SCREEN_WIDTH-1][0] = 0x00;
+        screenData[SCREEN_WIDTH-1][1] = 0x00;
+        screenData[SCREEN_WIDTH-1][2] = 0x00;
+        screenData[SCREEN_WIDTH-1][3] = (0x01 << (data%1024)/128);
+        
+    } else if ( data >= 0x400 && data < 0x800 ) {
+        
+        screenData[SCREEN_WIDTH-1][0] = 0x00;
+        screenData[SCREEN_WIDTH-1][1] = 0x00;
+        screenData[SCREEN_WIDTH-1][2] = (0x01 << (data%1024)/128);
+        screenData[SCREEN_WIDTH-1][3] = 0x00;
+        
+    } else if ( data >= 0x800 && data < 0xC00 ) {
+        screenData[SCREEN_WIDTH-1][0] = 0x00;
+        screenData[SCREEN_WIDTH-1][1] = (0x01 << (data%1024)/128);
+        screenData[SCREEN_WIDTH-1][2] = 0x00;
+        screenData[SCREEN_WIDTH-1][3] = 0x00;
+        
+    } else if ( data >= 0xC00 ) {
+        screenData[SCREEN_WIDTH-1][0] = (0x01 << (data%1024)/128);
+        screenData[SCREEN_WIDTH-1][1] = 0x00;
+        screenData[SCREEN_WIDTH-1][2] = 0x00;
+        screenData[SCREEN_WIDTH-1][3] = 0x00;
+        
+    } 
+}
+
 static void OLED_Tasks ( void )
 {
     SPI_OLEDRGB_COLOR color;
+    uint8_t loop;
     
     switch(oshiroData.oledState)
     {
@@ -120,7 +168,7 @@ static void OLED_Tasks ( void )
             color.green = 0xCC;
             color.blue = 0xCC;
             
-            if ( !SPI_OLEDRGB_DrawLine( 20, 16, 95, 16, &color) )break;
+            if ( !SPI_OLEDRGB_DrawLine( 20, 15, 95, 15, &color) )break;
             if ( !SPI_OLEDRGB_DrawLine( 20, 48, 95, 48, &color) )break;
             
             // string
@@ -130,11 +178,71 @@ static void OLED_Tasks ( void )
             
             if ( !SPI_OLEDRGB_DrawAsciiString( 0, 0, "oshiro", &color) )break;
             
-            oshiroData.oledState = OLED_STATE_FINISH;
+            if ( !SPI_OLEDRGB_SetRemapDataFormat( 0x73 ))break;
+            
+            oshiroData.oledState = OLED_STATE_STARTMEASURE;
+            break;
+        }
+        case OLED_STATE_STARTMEASURE:
+        {
+            oshiroData.tmrHandle = SYS_TMR_ObjectCreate( 100, 0, timerCallback, SYS_TMR_FLAG_PERIODIC );
+            if( oshiroData.tmrHandle != SYS_TMR_HANDLE_INVALID ){
+                oshiroData.oledState = OLED_STATE_WAITMEASURE;
+            }
+            break;
+        }
+        case OLED_STATE_MEASURE:
+        {
+            for(loop = 0; loop < SCREEN_WIDTH-1; loop++){
+               screenData[loop][0] = screenData[loop+1][0];
+               screenData[loop][1] = screenData[loop+1][1];
+               screenData[loop][2] = screenData[loop+1][2];
+               screenData[loop][3] = screenData[loop+1][3]; 
+            }
+            // ADC Data の設定
+            setScreenAdcData();
+            
+            color.red = 0x00;
+            color.green = 0x00;
+            color.blue = 0xFF;
+            if ( !SPI_OLEDRGB_DrawPixel( 20, 16, 94, 47, (uint8_t*)screenData, &color) )break;
+            
+            oshiroData.oledState = OLED_STATE_WAITMEASURE;
+            
             break;
         }
         default:
             break;
+    }
+    return;
+}
+
+static void ADC_Tasks ( void )
+{
+    switch( oshiroData.adcState )
+    {
+        case ADC_STATE_INIT:
+        {
+            // ADC オープン
+            DRV_ADC0_Open();
+            oshiroData.adcState = ADC_STATE_START;
+            break;
+        }
+        case ADC_STATE_START:
+        {
+            DRV_ADC_Start(); // ADC 変換開始
+            oshiroData.adcState = ADC_STATE_GET;
+            break;
+        }
+        case ADC_STATE_GET:
+        {
+            if(DRV_ADC_SamplesAvailable(ADCHS_AN1)){
+              // ADC 変換終了
+              oshiroData.adcData = DRV_ADC_SamplesRead(ADCHS_AN1);   // AN0 からADCデータ取得
+              oshiroData.adcState = ADC_STATE_START;
+            }
+            break;
+        }
     }
     return;
 }
@@ -163,6 +271,9 @@ void OSHIRO_Initialize ( void )
      * parameters.
      */
     oshiroData.oledState = OLED_STATE_INIT;
+    oshiroData.adcState = ADC_STATE_INIT;
+    
+    oshiroData.tmrHandle = SYS_TMR_HANDLE_INVALID;
 }
 
 
@@ -197,6 +308,7 @@ void OSHIRO_Tasks ( void )
         case OSHIRO_STATE_SERVICE_TASKS:
         {
             OLED_Tasks();
+            ADC_Tasks();
             break;
         }
 

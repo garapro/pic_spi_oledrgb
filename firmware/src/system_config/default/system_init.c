@@ -214,6 +214,10 @@ void SYS_Initialize ( void* data )
 
     /* Initialize Drivers */
 
+    /* Initialize ADC */
+    DRV_ADC_Initialize();
+
+
     /*** SPI Driver Index 0 initialization***/
 
     SYS_INT_VectorPrioritySet(DRV_SPI_TX_INT_VECTOR_IDX0, DRV_SPI_TX_INT_PRIORITY_IDX0);

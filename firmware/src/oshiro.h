@@ -98,8 +98,18 @@ typedef enum
 {
     OLED_STATE_INIT=0,
     OLED_STATE_FRAME,
+    OLED_STATE_STARTMEASURE,
+    OLED_STATE_WAITMEASURE,
+    OLED_STATE_MEASURE,
     OLED_STATE_FINISH
 }OLED_STATES;
+
+typedef enum
+{
+    ADC_STATE_INIT=0,
+    ADC_STATE_START,
+    ADC_STATE_GET,
+}ADC_STATES;
 
 // *****************************************************************************
 /* Application Data
@@ -121,7 +131,10 @@ typedef struct
 
     /* TODO: Define any additional data used by the application. */
     OLED_STATES oledState;
-
+    ADC_STATES adcState;
+    
+    SYS_TMR_HANDLE tmrHandle;
+    uint32_t adcData;
 } OSHIRO_DATA;
 
 

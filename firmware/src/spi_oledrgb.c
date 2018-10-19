@@ -264,11 +264,15 @@ bool SPI_OLEDRGB_DrawLine( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRo
     
 }
 
-bool SPI_OLEDRGB_DrawPixel( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, SPI_OLEDRGB_COLOR* color, uint8_t* bmp )
+bool SPI_OLEDRGB_DrawPixel( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, uint8_t* data, SPI_OLEDRGB_COLOR* color)
 {
     uint8_t writeBuf[10];
     uint16_t loop;
     uint16_t size;
+    uint16_t color16;
+    
+    uint16_t bufIdx;
+    uint8_t bufPos;
     
     writeBuf[0] = 0x15;
     writeBuf[1] = sCol;
@@ -280,9 +284,20 @@ bool SPI_OLEDRGB_DrawPixel( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fR
     if(!spiWrite(writeBuf, 6))return false;
     
     DCOn();
-    size = (fRow-sRow)*(fCol-sCol);
+    size = (fRow-sRow+1)*(fCol-sCol+1);
     for( loop = 0; loop<size; loop++){
-        spiWrite(&bmp[loop],1);
+        
+        bufIdx = loop/8;
+        bufPos = loop%8;
+        
+        if(( data[bufIdx] >> (7 - bufPos)) & 0x01){
+            color16 = getColor16(color);
+        } else {
+            color16 = 0x0000;
+        }
+        writeBuf[0] = (uint8_t)(color16>>8);
+        writeBuf[1] = (uint8_t)(color16);
+        spiWrite(writeBuf,2);
     }
     DCOff();
     
@@ -345,6 +360,14 @@ bool SPI_OLEDRGB_DrawAsciiString( uint8_t col, uint8_t row, char* str, SPI_OLEDR
         cnt++;
     }
     return true;
+}
+
+bool SPI_OLEDRGB_SetRemapDataFormat( uint8_t value )
+{
+    uint8_t writeBuf[2];
+    writeBuf[0] = 0xA0;
+    writeBuf[1] = value;
+    return spiWrite(&writeBuf, 2);
 }
 
 bool SPI_OLEDRGB_DevInit( void )

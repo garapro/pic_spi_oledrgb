@@ -212,8 +212,10 @@ void SPI_OLEDRGB_Tasks( void );
 
 bool SPI_OLEDRGB_DevInit( void );
 bool SPI_OLEDRGB_DrawLine( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, SPI_OLEDRGB_COLOR* color );
+bool SPI_OLEDRGB_DrawPixel( uint8_t sCol, uint8_t sRow, uint8_t fCol, uint8_t fRow, uint8_t* data, SPI_OLEDRGB_COLOR* color);
 bool SPI_OLEDRGB_DrawAscii( uint8_t col, uint8_t row, char ascii, SPI_OLEDRGB_COLOR* color );
 bool SPI_OLEDRGB_DrawAsciiString( uint8_t col, uint8_t row, char* str, SPI_OLEDRGB_COLOR* color );
+bool SPI_OLEDRGB_SetRemapDataFormat( uint8_t value );
 
 #endif /* _SPI_OLEDRGB_H */
 
