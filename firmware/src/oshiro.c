@@ -56,6 +56,8 @@ SUBSTITUTE GOODS, TECHNOLOGY, SERVICES, OR ANY CLAIMS BY THIRD PARTIES
 #include "oshiro.h"
 #include "spi_oledrgb.h"
 
+#include <stdio.h>
+
 // *****************************************************************************
 // *****************************************************************************
 // Section: Global Data Definitions
@@ -109,11 +111,20 @@ void timerCallback( uintptr_t context, uint32_t currTick )
 
 /* TODO:  Add any necessary local functions.
 */
-static void setScreenAdcData( void )
+static bool setScreenAdcData( void )
 {
     uint32_t data;
+    uint8_t loop;
+    SPI_OLEDRGB_COLOR color;
     
     data = oshiroData.adcData;
+    
+    for(loop = 0; loop < SCREEN_WIDTH-1; loop++){
+        screenData[loop][0] = screenData[loop+1][0];
+        screenData[loop][1] = screenData[loop+1][1];
+        screenData[loop][2] = screenData[loop+1][2];
+        screenData[loop][3] = screenData[loop+1][3]; 
+    }
     
     if( data < 0x400){
         
@@ -141,13 +152,51 @@ static void setScreenAdcData( void )
         screenData[SCREEN_WIDTH-1][2] = 0x00;
         screenData[SCREEN_WIDTH-1][3] = 0x00;
         
-    } 
+    }
+    
+    // 青
+    color.red = 0x00;
+    color.green = 0x00;
+    color.blue = 0xFF;
+    if ( !SPI_OLEDRGB_SetRemapDataFormat( 0x73 ))return false;
+    if ( !SPI_OLEDRGB_DrawPixel( 20, 16, 94, 47, (uint8_t*)screenData, &color) )return false;
+    
+    return true;
+}
+
+static bool setStringAdcData( void )
+{
+    char adcStr[10] = {0};
+    uint8_t adcStrNoData[18] = {0};
+    
+    SPI_OLEDRGB_COLOR color;
+    
+    if ( !SPI_OLEDRGB_SetRemapDataFormat( 0x72 ))return false;
+    
+    // 文字を消す
+    // 黒
+    color.blue = 0xFF;
+    color.green = 0xFF;
+    color.red = 0xFF;
+    
+    if ( !SPI_OLEDRGB_DrawPixel( 54, 52, 71, 59, (uint8_t*)adcStrNoData, &color))return false;
+    
+    // 文字を表示
+    // 青
+    color.blue = 0xFF;
+    color.green = 0x00;
+    color.red = 0x00;
+    
+    sprintf( adcStr, "%03X", oshiroData.adcData );
+    
+    if ( !SPI_OLEDRGB_DrawAsciiString( 54, 52, adcStr, &color) )return false;
+    
+    return true;
 }
 
 static void OLED_Tasks ( void )
 {
     SPI_OLEDRGB_COLOR color;
-    uint8_t loop;
     
     switch(oshiroData.oledState)
     {
@@ -177,8 +226,9 @@ static void OLED_Tasks ( void )
             color.blue = 0xFF;
             
             if ( !SPI_OLEDRGB_DrawAsciiString( 0, 0, "oshiro", &color) )break;
-            
-            if ( !SPI_OLEDRGB_SetRemapDataFormat( 0x73 ))break;
+            if ( !SPI_OLEDRGB_DrawAsciiString( 2, 15, "FFF", &color) )break;
+            if ( !SPI_OLEDRGB_DrawAsciiString( 2, 48, "000", &color) )break;
+            if ( !SPI_OLEDRGB_DrawAsciiString( 30, 52, "val=0x", &color) )break;
             
             oshiroData.oledState = OLED_STATE_STARTMEASURE;
             break;
@@ -193,19 +243,11 @@ static void OLED_Tasks ( void )
         }
         case OLED_STATE_MEASURE:
         {
-            for(loop = 0; loop < SCREEN_WIDTH-1; loop++){
-               screenData[loop][0] = screenData[loop+1][0];
-               screenData[loop][1] = screenData[loop+1][1];
-               screenData[loop][2] = screenData[loop+1][2];
-               screenData[loop][3] = screenData[loop+1][3]; 
-            }
-            // ADC Data の設定
-            setScreenAdcData();
+            // スクリーンの表示
+            if ( !setScreenAdcData())break;
             
-            color.red = 0x00;
-            color.green = 0x00;
-            color.blue = 0xFF;
-            if ( !SPI_OLEDRGB_DrawPixel( 20, 16, 94, 47, (uint8_t*)screenData, &color) )break;
+            // ADC Data の表示
+            if ( !setStringAdcData())break;
             
             oshiroData.oledState = OLED_STATE_WAITMEASURE;
             
